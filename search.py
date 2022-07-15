@@ -8,9 +8,11 @@ sys.setrecursionlimit(10000)
 
 #modeling the problem
 class TransportationProblem(object):
-	def __init__(self, N):
+	def __init__(self, N, weights):
 		# N = number of blocks
+		# weights = weights of different actions
 		self.N =N
+		self.weights = weights
 	def startState(self):
 		return 1 
 	def isEnd(self, state):
@@ -18,10 +20,10 @@ class TransportationProblem(object):
 	def succAndCost(self, state):
 		#retrun list of (action, newState, Cost) triples
 		result = []
-		if state +1 <=self.N:
-			result.append (( 'walk', state +1, 1))
-		if state*2<=self.N:
-			result.append(('tram', state*2, 2))
+		if state +1 <= self.N:
+			result.append (( 'walk', state +1, self.weights['walk']))
+		if state*2 <= self.N:
+			result.append(('tram', state*2, self.weights['tram']))
 		return result
 
 def printSolution(solution):
@@ -64,20 +66,59 @@ def backTrackingSearch(problem):
 #dynamic programming - cache[state] stores the results of sub trees
 #cannot have cycles, as the orfer of finding futurecost(s) has to be known
 def dynamicProgramming(problem):
-	cache = {} # state->futureCost(state)
+	cache = {} # state->futureCost(state), action, newState, Cost
 	def futureCost(state):
 		# base case
 		if problem.isEnd(state):
 			return 0
 		if state in cache:
-			return cache[state]
-		result = min(cost +futureCost(newState) \
-				for action, newState, cost in problem.succAndCost(state))
+			return cache[state][0]
+		result = min((cost +futureCost(newState), action, newState, cost)\
+				 for action, newState, cost in problem.succAndCost(state))
 		cache[state] = result
-		return result
-		
-	return (futureCost(problem.startState()), [])
+		return result[0]
 
+	state = problem.startState()
+	totalCost = futureCost(state)
+
+	history = []
+	while not problem.isEnd(state):
+		futurcost, action, newState, cost = cache[state]
+		history.append((action, newState, cost))
+		state = newState
+
+	return (futureCost(problem.startState()), history)
+
+def predict(N, weights):
+	#f(x)
+	#input (x): N (number of blocks)
+	# output (y) : path (sequence of actions)
+	Problem = TransportationProblem(N, weights)
+	totalCost, history = dynamicProgramming(Problem)
+	return [action for action, newState, cost in history]
+
+def generateExamples():
+	trueWeights = {'walk':1, 'tram':2}
+	return [(N, predict(N, trueWeights)) for N in range(1,10)]
+
+
+def structuredPerceptron(examples):
+	weights = {'walk':0, 'tram':0}
+	for t in range(100):
+		numMistakes =0
+		for N, trueActions in examples:
+			#Make a prediction
+			predActions = predict(N, weights)
+			if predActions != trueActions:
+				numMistakes +=1
+			#update weights
+			for action in trueActions:
+				weights[action] -= 1
+			for action in predActions:
+				weights[action] +=1
+		print('Iteration {}. numMistakes= {}, weights={}'.format(t, numMistakes, weights))
+		if numMistakes == 0:
+			break
 
 class PriorityQueue:
 	def __init__(self):
@@ -105,9 +146,6 @@ class PriorityQueue:
 		return (None, None)
 
 
-
-
-
 def uniformCostSearch(problem):
 	frontier = PriorityQueue()
 	frontier.update(problem.startState(),0)
@@ -122,12 +160,20 @@ def uniformCostSearch(problem):
 
 
 
-problem = TransportationProblem(N=456)
+#problem = TransportationProblem(N=456)
 #print(problem.succAndCost(3))
 #print(problem.succAndCost(9))0
 #printSolution(backTrackingSearch(problem))
-print('Dynamic Programming')
-printSolution(dynamicProgramming(problem))
-print('Uniform Cost Search')
-printSolution(uniformCostSearch(problem))
+#print('Dynamic Programming')
+#printSolution(dynamicProgramming(problem))
+#print('Uniform Cost Search')
+#printSolution(uniformCostSearch(problem))
+
+examples = generateExamples()
+print('Training datsaset :')
+
+for example in examples:
+	print(' ', example)
+
+structuredPerceptron(examples)
 
